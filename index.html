@@ -1,0 +1,1898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#171b16">
+  <title>Labyrinth</title>
+  <style>
+    :root {
+      --ink: #e8dfbd;
+      --ink-dim: #a89f83;
+      --night: #171b16;
+      --night-2: #20271e;
+      --moss: #41583b;
+      --moss-light: #72805a;
+      --stone: #aaa184;
+      --gold: #c8a85b;
+      --pixel-shadow: 4px 4px 0 #090b09;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--night);
+      color: var(--ink);
+      font-family: "Courier New", "Lucida Console", monospace;
+    }
+
+    body {
+      min-height: 100dvh;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .screen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    .pixel-bg {
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px) 0 0 / 8px 8px,
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px) 0 0 / 8px 8px,
+        radial-gradient(circle at 50% 18%, #2d3828 0, #1d241c 36%, #111410 100%);
+    }
+
+    .pixel-panel {
+      position: relative;
+      border: 4px solid #0b0e0b;
+      outline: 3px solid #81785f;
+      box-shadow:
+        inset 0 0 0 3px #383f32,
+        8px 8px 0 rgba(0,0,0,.42);
+      background: rgba(22, 27, 21, .94);
+    }
+
+    .pixel-panel::before,
+    .pixel-panel::after {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: var(--gold);
+      box-shadow: 0 0 0 2px #3c3525;
+    }
+
+    .pixel-panel::before {
+      left: 8px;
+      top: 8px;
+    }
+
+    .pixel-panel::after {
+      right: 8px;
+      bottom: 8px;
+    }
+
+    .intro {
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .intro-card {
+      width: min(430px, 91vw);
+      padding: clamp(42px, 9vw, 68px) 24px 34px;
+      text-align: center;
+      animation: card-in .7s steps(8, end) both;
+    }
+
+    .intro-card::after {
+      content: "";
+      position: absolute;
+      left: 12%;
+      right: 12%;
+      top: 24px;
+      height: 5px;
+      background: repeating-linear-gradient(90deg, #53634b 0 12px, #283224 12px 20px);
+      box-shadow: 0 7px 0 #1b2119;
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--moss-light);
+      font-size: 11px;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      color: #ede3c0;
+      font-size: clamp(35px, 11vw, 64px);
+      line-height: 1;
+      letter-spacing: .04em;
+      text-shadow:
+        3px 0 #384634,
+        0 3px #384634,
+        3px 3px #090b09;
+    }
+
+    .subtitle {
+      min-height: 34px;
+      margin: 20px auto 30px;
+      color: var(--ink-dim);
+      font-size: clamp(12px, 3.4vw, 15px);
+      line-height: 1.6;
+    }
+
+    .pixel-button {
+      position: relative;
+      min-width: 142px;
+      border: 0;
+      padding: 14px 26px 12px;
+      color: #171710;
+      background: #b9aa72;
+      box-shadow:
+        inset -4px -4px 0 #796c45,
+        inset 4px 4px 0 #ded19a,
+        0 5px 0 #090b09;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    .pixel-button:hover,
+    .pixel-button:focus-visible {
+      filter: brightness(1.12);
+      outline: 2px solid var(--ink);
+      outline-offset: 5px;
+    }
+
+    .pixel-button:active {
+      transform: translateY(4px);
+      box-shadow:
+        inset -4px -4px 0 #796c45,
+        inset 4px 4px 0 #ded19a,
+        0 1px 0 #090b09;
+    }
+
+    .intro-hint {
+      margin: 24px 0 0;
+      color: #6e7564;
+      font-size: 10px;
+      letter-spacing: .08em;
+    }
+
+    .game {
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      padding:
+        max(10px, env(safe-area-inset-top))
+        10px
+        max(9px, env(safe-area-inset-bottom));
+      background:
+        linear-gradient(rgba(10, 13, 10, .5), rgba(10, 13, 10, .72)),
+        repeating-linear-gradient(135deg, #283224 0 8px, #222a20 8px 16px);
+    }
+
+    .game-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: min(620px, 96vw);
+      min-height: 34px;
+      padding: 0 4px;
+      color: #cbc3a5;
+      font-size: clamp(10px, 2.7vw, 13px);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .sound-button {
+      border: 0;
+      padding: 5px 7px;
+      color: #cbc3a5;
+      background: #30382e;
+      box-shadow:
+        inset -2px -2px 0 #1b201a,
+        inset 2px 2px 0 #50594a;
+      cursor: pointer;
+      font-size: inherit;
+      letter-spacing: .05em;
+    }
+
+    .sound-button:active {
+      transform: translateY(1px);
+    }
+
+    .quest-mark {
+      color: var(--gold);
+    }
+
+    .maze-frame {
+      width: min(620px, 96vw);
+      padding: 7px;
+      border: 4px solid #0c0e0c;
+      outline: 3px solid #77705c;
+      background: #242b21;
+      box-shadow:
+        inset 0 0 0 3px #4b5343,
+        5px 5px 0 rgba(0,0,0,.48);
+    }
+
+    #mazeCanvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #5d644c;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .game-message {
+      min-height: 15px;
+      margin: 0;
+      color: #8d957f;
+      font-size: 10px;
+      text-align: center;
+      letter-spacing: .03em;
+    }
+
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 66px);
+      grid-template-rows: repeat(3, 56px);
+      gap: 7px;
+      margin-top: 3px;
+      margin-bottom: clamp(18px, 4dvh, 36px);
+    }
+
+    .dpad-button {
+      position: relative;
+      border: 0;
+      color: #d8d0b2;
+      background: #394137;
+      box-shadow:
+        inset -4px -4px 0 #20251f,
+        inset 4px 4px 0 #596052,
+        0 4px 0 #090b09;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    .dpad-button::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 0;
+      height: 0;
+      transform: translate(-50%, -50%);
+      border-style: solid;
+    }
+
+    .dpad-button[data-direction="up"] {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .dpad-button[data-direction="left"] {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .dpad-center {
+      grid-column: 2;
+      grid-row: 2;
+      background: #333a31;
+      box-shadow:
+        inset -3px -3px 0 #252b24,
+        inset 3px 3px 0 #465044;
+    }
+
+    .dpad-button[data-direction="right"] {
+      grid-column: 3;
+      grid-row: 2;
+    }
+
+    .dpad-button[data-direction="down"] {
+      grid-column: 2;
+      grid-row: 3;
+    }
+
+    .dpad-button[data-direction="up"]::before {
+      border-width: 0 9px 12px;
+      border-color: transparent transparent #d8d0b2;
+    }
+
+    .dpad-button[data-direction="down"]::before {
+      border-width: 12px 9px 0;
+      border-color: #d8d0b2 transparent transparent;
+    }
+
+    .dpad-button[data-direction="left"]::before {
+      border-width: 9px 12px 9px 0;
+      border-color: transparent #d8d0b2 transparent transparent;
+    }
+
+    .dpad-button[data-direction="right"]::before {
+      border-width: 9px 0 9px 12px;
+      border-color: transparent transparent transparent #d8d0b2;
+    }
+
+    .dpad-button:active,
+    .dpad-button.pressed {
+      transform: translateY(3px);
+      filter: brightness(1.15);
+      box-shadow:
+        inset -3px -3px 0 #20251f,
+        inset 3px 3px 0 #596052,
+        0 1px 0 #090b09;
+    }
+
+    .win-screen {
+      z-index: 10;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      cursor: pointer;
+      background:
+        linear-gradient(rgba(14, 17, 14, .94), rgba(7, 9, 7, .98)),
+        repeating-linear-gradient(90deg, #31392e 0 4px, #252b23 4px 8px);
+      opacity: 0;
+      transition: opacity .55s steps(8, end), filter 1.1s ease;
+    }
+
+    .win-screen.active {
+      opacity: 1;
+    }
+
+    .win-screen.transition-out {
+      opacity: 0;
+      filter: brightness(.25);
+      pointer-events: none;
+    }
+
+    .win-content {
+      width: min(580px, 94vw);
+      text-align: center;
+      animation: win-arrive .75s steps(8, end) both;
+    }
+
+    .win-title {
+      margin: 0;
+      font-size: clamp(27px, 8vw, 50px);
+      line-height: 1.25;
+      color: #e9e0c0;
+      text-shadow: var(--pixel-shadow);
+    }
+
+    .win-hint {
+      margin: 22px 0 0;
+      color: #8d927e;
+      font-size: clamp(11px, 3vw, 14px);
+      animation: soft-blink 1.5s steps(2, end) infinite;
+    }
+
+    .birthday-screen {
+      z-index: 20;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 50% 45%, rgba(54, 45, 65, .58), transparent 42%),
+        linear-gradient(#0b101c, #171322 62%, #22182a);
+      opacity: 0;
+      transition: opacity 2.2s ease;
+    }
+
+    .birthday-screen.active {
+      opacity: 1;
+      animation: screen-reveal 2.2s ease both;
+    }
+
+    #fireworksCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .birthday-content {
+      position: relative;
+      z-index: 2;
+      width: min(760px, 96vw);
+      text-align: center;
+    }
+
+    .birthday-kicker,
+    .birthday-title,
+    .birthday-signature {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .birthday-screen.active .birthday-kicker {
+      animation: birthday-text-in 3s 1.1s cubic-bezier(.22, .7, .25, 1) forwards;
+    }
+
+    .birthday-screen.active .birthday-title {
+      animation: birthday-text-in 4.2s 3s cubic-bezier(.22, .7, .25, 1) forwards;
+    }
+
+    .birthday-screen.active .birthday-signature {
+      animation: birthday-text-in 3s 6.2s cubic-bezier(.22, .7, .25, 1) forwards;
+    }
+
+    .birthday-kicker {
+      margin: 0 0 18px;
+      color: #d7bd72;
+      font-size: clamp(10px, 2.8vw, 14px);
+      letter-spacing: .34em;
+      text-transform: uppercase;
+    }
+
+    .birthday-title {
+      margin: 0;
+      color: #fff1c9;
+      font-family: "Courier New", "Microsoft YaHei", monospace;
+      font-size: clamp(29px, 8.5vw, 66px);
+      line-height: 1.34;
+      text-wrap: balance;
+      text-shadow:
+        3px 3px 0 #7a4667,
+        6px 6px 0 rgba(0,0,0,.45);
+    }
+
+    .birthday-signature {
+      margin: 28px auto 0;
+      color: #d9b65b;
+      font-size: clamp(12px, 3vw, 17px);
+      letter-spacing: .2em;
+      text-shadow: 2px 2px 0 rgba(0,0,0,.4);
+    }
+
+    .spark {
+      position: absolute;
+      z-index: 1;
+      width: 5px;
+      height: 5px;
+      background: #f6da83;
+      box-shadow: 0 0 8px #f6da83;
+      animation: star-pulse 1.8s steps(3, end) infinite;
+    }
+
+    .spark:nth-of-type(1) { left: 10%; top: 16%; animation-delay: -.3s; }
+    .spark:nth-of-type(2) { left: 84%; top: 24%; animation-delay: -.9s; }
+    .spark:nth-of-type(3) { left: 18%; top: 76%; animation-delay: -1.3s; }
+    .spark:nth-of-type(4) { left: 77%; top: 70%; animation-delay: -.6s; }
+
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes win-arrive {
+      from { opacity: 0; transform: scale(.93); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes birthday-text-in {
+      from { opacity: 0; transform: translateY(16px); filter: blur(3px); }
+      to { opacity: 1; transform: translateY(0); filter: blur(0); }
+    }
+
+    @keyframes screen-reveal {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes soft-blink {
+      50% { opacity: .46; }
+    }
+
+    @keyframes star-pulse {
+      50% { opacity: .28; transform: scale(.5); }
+    }
+
+    @media (min-width: 700px) and (pointer: fine) {
+      .game {
+        justify-content: center;
+      }
+
+      .dpad {
+        grid-template-columns: repeat(3, 58px);
+        grid-template-rows: repeat(3, 48px);
+        margin-top: 4px;
+        margin-bottom: 12px;
+        opacity: .78;
+      }
+    }
+
+    @media (max-height: 650px) {
+      .game {
+        gap: 5px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+      }
+
+      .game-topbar {
+        min-height: 24px;
+      }
+
+      .maze-frame {
+        width: min(500px, 86vw, calc((100dvh - 196px) * 1.4));
+      }
+
+      .dpad {
+        grid-template-columns: repeat(3, 58px);
+        grid-template-rows: repeat(3, 46px);
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 520px) {
+      .game.active {
+        display: grid;
+        grid-template-columns: minmax(300px, 62vw) 180px;
+        grid-template-rows: 30px 1fr 18px;
+        justify-content: center;
+        align-content: center;
+        column-gap: 18px;
+      }
+
+      .game-topbar,
+      .maze-frame,
+      .game-message {
+        width: 100%;
+        grid-column: 1;
+      }
+
+      .game-topbar { grid-row: 1; }
+      .maze-frame { grid-row: 2; }
+      .game-message { grid-row: 3; }
+
+      .dpad {
+        grid-column: 2;
+        grid-row: 1 / 4;
+        align-self: center;
+        margin: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+      }
+
+      .birthday-screen {
+        transition-duration: .35s;
+      }
+
+      .birthday-screen.active .birthday-kicker {
+        animation: birthday-fade-only 2.2s .7s ease forwards !important;
+      }
+
+      .birthday-screen.active .birthday-title {
+        animation: birthday-fade-only 3s 2.4s ease forwards !important;
+      }
+
+      .birthday-screen.active .birthday-signature {
+        animation: birthday-fade-only 2.2s 5s ease forwards !important;
+      }
+    }
+
+    @keyframes birthday-fade-only {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="introScreen" class="screen intro pixel-bg active" aria-labelledby="gameTitle">
+      <div class="intro-card pixel-panel">
+        <p id="eyebrow" class="eyebrow"></p>
+        <h1 id="gameTitle"></h1>
+        <p id="gameSubtitle" class="subtitle"></p>
+        <button id="startButton" class="pixel-button" type="button"></button>
+        <p id="introHint" class="intro-hint"></p>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="screen game" aria-label="迷宫游戏">
+      <div class="game-topbar">
+        <span id="levelLabel"></span>
+        <button id="soundButton" class="sound-button" type="button" aria-label="切换声音">SOUND ON</button>
+        <span id="goalLabel"></span>
+      </div>
+
+      <div class="maze-frame">
+        <canvas id="mazeCanvas" width="336" height="240" aria-label="花园迷宫"></canvas>
+      </div>
+
+      <p id="gameMessage" class="game-message"></p>
+
+      <div id="dpad" class="dpad" aria-label="虚拟方向键">
+        <button class="dpad-button" type="button" data-direction="up" aria-label="向上"></button>
+        <button class="dpad-button" type="button" data-direction="left" aria-label="向左"></button>
+        <div class="dpad-center" aria-hidden="true"></div>
+        <button class="dpad-button" type="button" data-direction="right" aria-label="向右"></button>
+        <button class="dpad-button" type="button" data-direction="down" aria-label="向下"></button>
+      </div>
+    </section>
+
+    <section id="winScreen" class="screen win-screen" role="button" tabindex="0" aria-labelledby="winTitle">
+      <div class="win-content">
+        <h2 id="winTitle" class="win-title"></h2>
+        <p id="winHint" class="win-hint"></p>
+      </div>
+    </section>
+
+    <section id="birthdayScreen" class="screen birthday-screen" aria-labelledby="birthdayTitle">
+      <canvas id="fireworksCanvas" aria-hidden="true"></canvas>
+      <i class="spark" aria-hidden="true"></i>
+      <i class="spark" aria-hidden="true"></i>
+      <i class="spark" aria-hidden="true"></i>
+      <i class="spark" aria-hidden="true"></i>
+      <div class="birthday-content">
+        <p id="birthdayKicker" class="birthday-kicker"></p>
+        <h2 id="birthdayTitle" class="birthday-title"></h2>
+        <p id="birthdaySignature" class="birthday-signature"></p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    // ================================================================
+    // 文案与游戏配置都集中在这里，后续通常只需要修改这一块。
+    // ================================================================
+    const config = {
+      gameTitle: "Labyrinth",
+      subtitle: "Be so careful you don't get lost",
+      eyebrow: "A quiet garden quest",
+      startButton: "Start",
+      introHint: "Arrow keys / WASD / touch controls",
+      levelLabel: "Garden I",
+      goalLabel: "Find the old gate",
+      gameMessage: "Reach the marked gate. The hedges do not yield.",
+      guitarFoundMessage: "You found an old guitar. It may be worth carrying.",
+
+      clearTitle: "Congratulations!",
+      clearHint: "Please tap the screen again.",
+
+      // 修改朋友名字：只改下面引号里的内容即可。
+      friendName: "yicheng 老师",
+
+      // 修改生日祝福：{name} 会自动替换成上面的朋友名字。
+      birthdayMessage: "Happy Birthday~ {name}！",
+      birthdayKicker: "One more thing",
+      birthdaySignature: "From CZHE",
+
+      tileSize: 16,
+      revealDelay: 1500,
+
+      // 修改迷宫地图：
+      // # = 自动选择样式的墙，H = 高绿篱，B = 砖墙，P = 罗马石柱
+      // . = 道路，S = 起点，G = 终点。每行长度必须一致，并保留一个 S 和一个 G。
+      // 默认地图最短路线约 62 步，包含死胡同、误导通道和两处小庭院探索区。
+      mazeMap: [
+        "#####################",
+        "#S......#.......#...#",
+        "#######.#..##.#.###.#",
+        "#.....#.#...#.#...#.#",
+        "#..##.#.#####.###.#.#",
+        "#...#.#.....#.#.#.#.#",
+        "#.#.#.#####.#.#.#.#.#",
+        "#.#.#...#...#.#.#...#",
+        "#.#.###.#.###.#.###.#",
+        "#.#.#.#.#.#...#...#.#",
+        "###.#.#.#.###.#.###.#",
+        "#...#...#...#.#.#...#",
+        "#.#########.#.#.#.###",
+        "#.............#....G#",
+        "#####################"
+      ],
+
+      // 调整角色和终点颜色可修改这里；具体像素形状在 drawPlayer / drawGoal 函数中。
+      colors: {
+        playerCoat: "#46536a",
+        playerSkin: "#d7b98a",
+        playerHair: "#38251f",
+        playerScarf: "#8e4b49",
+        playerBoots: "#25242a",
+        guitarWood: "#9a603a",
+        guitarLight: "#d0a55a",
+        goalGlow: "#d6b85e",
+        goalStone: "#aca48c"
+      }
+    };
+
+    const $ = (selector) => document.querySelector(selector);
+    const screens = {
+      intro: $("#introScreen"),
+      game: $("#gameScreen"),
+      win: $("#winScreen"),
+      birthday: $("#birthdayScreen")
+    };
+
+    const mazeCanvas = $("#mazeCanvas");
+    const mazeContext = mazeCanvas.getContext("2d");
+    const fireworksCanvas = $("#fireworksCanvas");
+    const fireworksContext = fireworksCanvas.getContext("2d");
+
+    let maze = [];
+    let player = { x: 0, y: 0, renderX: 0, renderY: 0, facing: "down" };
+    let goal = { x: 0, y: 0 };
+    let guitar = { x: -1, y: -1, collected: false };
+    let gameState = "intro";
+    let lastFrame = performance.now();
+    let revealLocked = false;
+    let holdTimer = null;
+    let animationFrameId = null;
+    let guitarMessageTimer = null;
+
+    let audioContext = null;
+    let masterGain = null;
+    let audioCompressor = null;
+    let audioUnlocked = false;
+    let mediaAudioUnlocked = false;
+    let mediaPriming = false;
+    let soundEnabled = true;
+    let mediaSoundUrls = null;
+    let mediaUnlockAudio = null;
+    let birthdayAudio = null;
+    const activeMediaSounds = new Set();
+    let birthdayMusicTimer = null;
+    let lastFireworkSoundAt = 0;
+
+    const directions = {
+      up: { x: 0, y: -1 },
+      down: { x: 0, y: 1 },
+      left: { x: -1, y: 0 },
+      right: { x: 1, y: 0 }
+    };
+
+    function applyCopy() {
+      document.title = config.gameTitle;
+      $("#gameTitle").textContent = config.gameTitle;
+      $("#gameSubtitle").textContent = config.subtitle;
+      $("#eyebrow").textContent = config.eyebrow;
+      $("#startButton").textContent = config.startButton;
+      $("#introHint").textContent = config.introHint;
+      $("#levelLabel").textContent = config.levelLabel;
+      $("#goalLabel").textContent = config.goalLabel;
+      $("#gameMessage").textContent = config.gameMessage;
+      $("#winTitle").textContent = config.clearTitle;
+      $("#winHint").textContent = config.clearHint;
+      $("#birthdayKicker").textContent = config.birthdayKicker;
+      $("#birthdayTitle").textContent = config.birthdayMessage.replace("{name}", config.friendName);
+      $("#birthdaySignature").textContent = config.birthdaySignature;
+    }
+
+    function parseMaze() {
+      const width = config.mazeMap[0].length;
+      if (!config.mazeMap.length || config.mazeMap.some((row) => row.length !== width)) {
+        throw new Error("迷宫地图的每一行必须具有相同长度。");
+      }
+
+      maze = config.mazeMap.map((row) => row.split(""));
+      let startCount = 0;
+      let goalCount = 0;
+
+      maze.forEach((row, y) => {
+        row.forEach((tile, x) => {
+          if (tile === "S") {
+            player.x = x;
+            player.y = y;
+            player.renderX = x;
+            player.renderY = y;
+            startCount += 1;
+          }
+          if (tile === "G") {
+            goal = { x, y };
+            goalCount += 1;
+          }
+        });
+      });
+
+      if (startCount !== 1 || goalCount !== 1) {
+        throw new Error("迷宫地图需要且只能包含一个起点 S 和一个终点 G。");
+      }
+
+      if (!isMazeSolvable()) {
+        throw new Error("当前迷宫无法从 S 到达 G，请检查墙体位置。");
+      }
+
+      placeGuitarInRandomDeadEnd();
+      mazeCanvas.width = width * config.tileSize;
+      mazeCanvas.height = maze.length * config.tileSize;
+      mazeContext.imageSmoothingEnabled = false;
+    }
+
+    function isMazeSolvable() {
+      const queue = [[player.x, player.y]];
+      const visited = new Set([`${player.x},${player.y}`]);
+
+      while (queue.length) {
+        const [x, y] = queue.shift();
+        if (x === goal.x && y === goal.y) return true;
+
+        Object.values(directions).forEach(({ x: dx, y: dy }) => {
+          const nextX = x + dx;
+          const nextY = y + dy;
+          const key = `${nextX},${nextY}`;
+          if (
+            maze[nextY] &&
+            maze[nextY][nextX] &&
+            !isWall(maze[nextY][nextX]) &&
+            !visited.has(key)
+          ) {
+            visited.add(key);
+            queue.push([nextX, nextY]);
+          }
+        });
+      }
+
+      return false;
+    }
+
+    function isWall(tile) {
+      return ["#", "H", "B", "P"].includes(tile);
+    }
+
+    function placeGuitarInRandomDeadEnd() {
+      const candidates = [];
+      const fallbackCandidates = [];
+
+      maze.forEach((row, y) => {
+        row.forEach((tile, x) => {
+          if (tile !== ".") return;
+
+          const exits = Object.values(directions).filter(({ x: dx, y: dy }) => {
+            const neighbor = maze[y + dy] && maze[y + dy][x + dx];
+            return neighbor && !isWall(neighbor);
+          }).length;
+
+          if (exits !== 1) return;
+
+          const startDistance = Math.abs(x - player.x) + Math.abs(y - player.y);
+          const goalDistance = Math.abs(x - goal.x) + Math.abs(y - goal.y);
+          fallbackCandidates.push({ x, y });
+
+          if (startDistance >= 7 && goalDistance >= 5) {
+            candidates.push({ x, y });
+          }
+        });
+      });
+
+      const pool = candidates.length ? candidates : fallbackCandidates;
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
+      guitar = chosen ? { ...chosen, collected: false } : { x: -1, y: -1, collected: true };
+    }
+
+    function showScreen(name) {
+      Object.values(screens).forEach((screen) => screen.classList.remove("active"));
+      screens[name].classList.add("active");
+    }
+
+    function startGame() {
+      stopBirthdayMusic();
+      unlockMediaAudio();
+      unlockAudio();
+      playStartSound();
+      gameState = "playing";
+      showScreen("game");
+      lastFrame = performance.now();
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    function movePlayer(directionName) {
+      if (gameState !== "playing") return;
+
+      const movement = directions[directionName];
+      const nextX = player.x + movement.x;
+      const nextY = player.y + movement.y;
+      player.facing = directionName;
+
+      const nextTile = maze[nextY] && maze[nextY][nextX];
+      if (!nextTile || isWall(nextTile)) {
+        playWallSound();
+        nudgeBoard(directionName);
+        return;
+      }
+
+      player.x = nextX;
+      player.y = nextY;
+      playStepSound();
+
+      if (!guitar.collected && player.x === guitar.x && player.y === guitar.y) {
+        collectGuitar();
+      }
+
+      if (player.x === goal.x && player.y === goal.y) {
+        gameState = "finishing";
+        setTimeout(showWinScreen, 240);
+      }
+    }
+
+    function nudgeBoard(directionName) {
+      const frame = document.querySelector(".maze-frame");
+      const offsets = {
+        up: "translateY(-2px)",
+        down: "translateY(2px)",
+        left: "translateX(-2px)",
+        right: "translateX(2px)"
+      };
+      frame.animate(
+        [{ transform: offsets[directionName] }, { transform: "translate(0)" }],
+        { duration: 90, easing: "steps(2, end)" }
+      );
+    }
+
+    function collectGuitar() {
+      guitar.collected = true;
+      playPickupSound();
+      clearTimeout(guitarMessageTimer);
+      $("#gameMessage").textContent = config.guitarFoundMessage;
+      guitarMessageTimer = setTimeout(() => {
+        if (gameState === "playing") {
+          $("#gameMessage").textContent = config.gameMessage;
+        }
+      }, 3000);
+    }
+
+    // Build small WAV clips in memory. This is a fallback for embedded browsers
+    // that expose Web Audio but do not route its graph to the device speaker.
+    function createWavUrl(duration, buildSamples) {
+      const sampleRate = 22050;
+      const samples = new Float32Array(Math.ceil(duration * sampleRate));
+      buildSamples(samples, sampleRate);
+
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      const writeText = (offset, text) => {
+        for (let index = 0; index < text.length; index += 1) {
+          view.setUint8(offset + index, text.charCodeAt(index));
+        }
+      };
+
+      writeText(0, "RIFF");
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeText(8, "WAVE");
+      writeText(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeText(36, "data");
+      view.setUint32(40, samples.length * 2, true);
+
+      samples.forEach((sample, index) => {
+        const clipped = Math.max(-1, Math.min(1, sample));
+        view.setInt16(44 + index * 2, clipped < 0 ? clipped * 32768 : clipped * 32767, true);
+      });
+
+      return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+    }
+
+    function addSynthTone(samples, sampleRate, start, duration, frequency, volume, wave = "triangle") {
+      const firstSample = Math.floor(start * sampleRate);
+      const sampleCount = Math.floor(duration * sampleRate);
+
+      for (let index = 0; index < sampleCount && firstSample + index < samples.length; index += 1) {
+        const time = index / sampleRate;
+        const progress = index / Math.max(1, sampleCount - 1);
+        const attack = Math.min(1, progress / .08);
+        const release = Math.min(1, (1 - progress) / .24);
+        const envelope = attack * release;
+        const phase = (time * frequency) % 1;
+        let value;
+
+        if (wave === "square") value = phase < .5 ? 1 : -1;
+        else if (wave === "sine") value = Math.sin(Math.PI * 2 * phase);
+        else value = 1 - 4 * Math.abs(phase - .5);
+
+        samples[firstSample + index] += value * volume * envelope;
+      }
+    }
+
+    function addNoiseBurst(samples, sampleRate, start, duration, volume) {
+      const firstSample = Math.floor(start * sampleRate);
+      const sampleCount = Math.floor(duration * sampleRate);
+      let previous = 0;
+
+      for (let index = 0; index < sampleCount && firstSample + index < samples.length; index += 1) {
+        const progress = index / Math.max(1, sampleCount - 1);
+        const white = Math.random() * 2 - 1;
+        previous = previous * .66 + white * .34;
+        samples[firstSample + index] += previous * volume * Math.pow(1 - progress, 2.2);
+      }
+    }
+
+    function buildMediaSounds() {
+      if (mediaSoundUrls || typeof Audio === "undefined") return;
+
+      mediaSoundUrls = {
+        unlock: createWavUrl(.06, () => {}),
+        stepA: createWavUrl(.09, (samples, rate) => addSynthTone(samples, rate, 0, .085, 260, .48)),
+        stepB: createWavUrl(.09, (samples, rate) => addSynthTone(samples, rate, 0, .085, 315, .44)),
+        wall: createWavUrl(.11, (samples, rate) => addSynthTone(samples, rate, 0, .1, 155, .34, "square")),
+        start: createWavUrl(.38, (samples, rate) => {
+          addSynthTone(samples, rate, 0, .18, 330, .42);
+          addSynthTone(samples, rate, .11, .24, 440, .38);
+        }),
+        pickup: createWavUrl(.62, (samples, rate) => {
+          [392, 494, 587, 784].forEach((frequency, index) => {
+            addSynthTone(samples, rate, index * .1, .28, frequency, .3, index % 2 ? "triangle" : "square");
+          });
+        }),
+        reveal: createWavUrl(1.05, (samples, rate) => {
+          [294, 370, 440, 587].forEach((frequency, index) => {
+            addSynthTone(samples, rate, index * .16, .58, frequency, .3, "sine");
+          });
+        }),
+        firework: createWavUrl(.42, (samples, rate) => {
+          addNoiseBurst(samples, rate, 0, .38, .7);
+          addSynthTone(samples, rate, 0, .3, 105, .42, "sine");
+        })
+      };
+
+      const beat = .34;
+      const melody = [
+        [392, .75], [392, .25], [440, 1], [392, 1], [523, 1], [494, 2],
+        [392, .75], [392, .25], [440, 1], [392, 1], [587, 1], [523, 2],
+        [392, .75], [392, .25], [784, 1], [659, 1], [523, 1], [494, 1], [440, 2],
+        [698, .75], [698, .25], [659, 1], [523, 1], [587, 1], [523, 2]
+      ];
+      const melodyDuration = melody.reduce((total, note) => total + note[1] * beat, .25) + .8;
+
+      mediaSoundUrls.birthday = createWavUrl(melodyDuration, (samples, rate) => {
+        let cursor = .25;
+        melody.forEach(([frequency, beats], index) => {
+          const duration = beats * beat;
+          addSynthTone(samples, rate, cursor, Math.max(.11, duration * .86), frequency, .29);
+          if (index % 6 === 0) {
+            addSynthTone(samples, rate, cursor, Math.max(.16, duration), frequency / 2, .13, "sine");
+          }
+          cursor += duration;
+        });
+      });
+
+      mediaUnlockAudio = new Audio(mediaSoundUrls.unlock);
+      mediaUnlockAudio.preload = "auto";
+      mediaUnlockAudio.volume = 1;
+      mediaUnlockAudio.playsInline = true;
+    }
+
+    function playMediaSound(name, volume = .75, fallback = null) {
+      if (!soundEnabled || !mediaSoundUrls || !mediaSoundUrls[name]) {
+        fallback?.();
+        return false;
+      }
+
+      const audio = new Audio(mediaSoundUrls[name]);
+      audio.volume = volume;
+      audio.preload = "auto";
+      audio.playsInline = true;
+      activeMediaSounds.add(audio);
+      const releaseAudio = () => activeMediaSounds.delete(audio);
+      audio.addEventListener("ended", releaseAudio, { once: true });
+      audio.addEventListener("error", releaseAudio, { once: true });
+
+      let playPromise;
+      try {
+        playPromise = audio.play();
+      } catch (error) {
+        releaseAudio();
+        fallback?.();
+        return false;
+      }
+
+      if (playPromise && typeof playPromise.then === "function") {
+        playPromise.then(() => {
+          mediaAudioUnlocked = true;
+          updateSoundButton();
+        }).catch(() => {
+          releaseAudio();
+          mediaAudioUnlocked = false;
+          updateSoundButton("TAP SOUND");
+          fallback?.();
+        });
+      }
+
+      return true;
+    }
+
+    function unlockMediaAudio() {
+      buildMediaSounds();
+      if (!mediaUnlockAudio || !soundEnabled || mediaAudioUnlocked || mediaPriming) return;
+
+      mediaPriming = true;
+      mediaUnlockAudio.currentTime = 0;
+      let playPromise;
+      try {
+        playPromise = mediaUnlockAudio.play();
+      } catch (error) {
+        mediaPriming = false;
+        return;
+      }
+      if (!playPromise || typeof playPromise.then !== "function") {
+        mediaPriming = false;
+        return;
+      }
+
+      playPromise.then(() => {
+        mediaUnlockAudio.pause();
+        mediaUnlockAudio.currentTime = 0;
+        mediaPriming = false;
+        mediaAudioUnlocked = true;
+        updateSoundButton();
+      }).catch(() => {
+        mediaPriming = false;
+        mediaAudioUnlocked = false;
+        updateSoundButton("TAP SOUND");
+      });
+    }
+
+    // Web Audio is the secondary path when native WAV playback is unavailable.
+    function ensureAudio() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return null;
+
+      if (!audioContext) {
+        audioContext = new AudioContextClass();
+        masterGain = audioContext.createGain();
+        audioCompressor = audioContext.createDynamicsCompressor();
+        masterGain.gain.value = soundEnabled ? .82 : 0;
+        audioCompressor.threshold.value = -18;
+        audioCompressor.knee.value = 16;
+        audioCompressor.ratio.value = 5;
+        audioCompressor.attack.value = .004;
+        audioCompressor.release.value = .18;
+        masterGain.connect(audioCompressor);
+        audioCompressor.connect(audioContext.destination);
+        audioContext.addEventListener("statechange", () => {
+          audioUnlocked = audioContext.state === "running";
+          updateSoundButton();
+        });
+      }
+
+      return audioContext;
+    }
+
+    async function unlockAudio() {
+      const context = ensureAudio();
+      if (!context) {
+        updateSoundButton(mediaAudioUnlocked ? "" : "TAP SOUND");
+        return false;
+      }
+
+      try {
+        // Start a silent source inside the user gesture before awaiting resume().
+        const buffer = context.createBuffer(1, 1, context.sampleRate);
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(masterGain);
+        source.start(0);
+
+        if (context.state !== "running") {
+          await context.resume();
+        }
+
+        audioUnlocked = context.state === "running";
+        updateSoundButton();
+        return audioUnlocked;
+      } catch (error) {
+        audioUnlocked = false;
+        updateSoundButton("TAP SOUND");
+        return false;
+      }
+    }
+
+    function updateSoundButton(forcedLabel = "") {
+      const button = $("#soundButton");
+      if (!button) return;
+      const anyAudioUnlocked = audioUnlocked || mediaAudioUnlocked;
+      button.textContent = forcedLabel || (soundEnabled ? (anyAudioUnlocked ? "SOUND ON" : "TAP SOUND") : "SOUND OFF");
+      button.setAttribute("aria-pressed", String(soundEnabled));
+    }
+
+    async function toggleSound() {
+      const context = ensureAudio();
+      buildMediaSounds();
+      if (!context && !mediaSoundUrls) {
+        updateSoundButton("UNSUPPORTED");
+        return;
+      }
+
+      if (soundEnabled && !audioUnlocked && !mediaAudioUnlocked) {
+        unlockMediaAudio();
+        const unlocked = context ? await unlockAudio() : false;
+        if (unlocked || mediaAudioUnlocked) {
+          if (context && masterGain) {
+            masterGain.gain.cancelScheduledValues(context.currentTime);
+            masterGain.gain.setTargetAtTime(.82, context.currentTime, .025);
+          }
+          if (gameState === "birthday") startBirthdayMusic();
+          else playStartSound();
+        }
+        return;
+      }
+
+      soundEnabled = !soundEnabled;
+      if (soundEnabled) {
+        unlockMediaAudio();
+        const unlocked = context ? await unlockAudio() : false;
+        if (unlocked || mediaAudioUnlocked) {
+          if (context && masterGain) {
+            masterGain.gain.cancelScheduledValues(context.currentTime);
+            masterGain.gain.setTargetAtTime(.82, context.currentTime, .025);
+          }
+          if (gameState === "birthday") startBirthdayMusic();
+          else playStartSound();
+        }
+      } else {
+        stopBirthdayMusic();
+        if (context && masterGain) {
+          masterGain.gain.cancelScheduledValues(context.currentTime);
+          masterGain.gain.setTargetAtTime(0, context.currentTime, .018);
+        }
+        updateSoundButton();
+      }
+    }
+
+    function playTone(frequency, duration, type = "triangle", volume = .04, delay = 0) {
+      const context = ensureAudio();
+      if (!context || !frequency || !soundEnabled || context.state !== "running") return;
+
+      const start = context.currentTime + delay;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(.0001, start);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume), start + .012);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+
+      oscillator.connect(gain);
+      gain.connect(masterGain);
+      oscillator.start(start);
+      oscillator.stop(start + duration + .04);
+    }
+
+    function playStepSound() {
+      const evenStep = (player.x + player.y) % 2 === 0;
+      playMediaSound(evenStep ? "stepA" : "stepB", .7, () => {
+        playTone(evenStep ? 235 : 273, .065, "triangle", .075);
+      });
+    }
+
+    function playWallSound() {
+      playMediaSound("wall", .62, () => playTone(145, .085, "square", .052));
+    }
+
+    function playPickupSound() {
+      playMediaSound("pickup", .82, () => {
+        [392, 494, 587, 784].forEach((frequency, index) => {
+          playTone(frequency, .24, index % 2 ? "triangle" : "square", .11, index * .085);
+        });
+      });
+    }
+
+    function playRevealChime() {
+      playMediaSound("reveal", .8, () => {
+        [294, 370, 440, 587].forEach((frequency, index) => {
+          playTone(frequency, .55, "sine", .09, index * .14);
+        });
+      });
+    }
+
+    function playStartSound() {
+      playMediaSound("start", .78, () => {
+        playTone(330, .14, "triangle", .09);
+        playTone(440, .18, "triangle", .08, .09);
+      });
+    }
+
+    function startBirthdayMusic() {
+      if (gameState !== "birthday" || !soundEnabled) return;
+      clearTimeout(birthdayMusicTimer);
+      buildMediaSounds();
+
+      if (mediaSoundUrls?.birthday) {
+        birthdayAudio?.pause();
+        birthdayAudio = new Audio(mediaSoundUrls.birthday);
+        birthdayAudio.loop = true;
+        birthdayAudio.preload = "auto";
+        birthdayAudio.volume = .72;
+        birthdayAudio.playsInline = true;
+        const playPromise = birthdayAudio.play();
+        if (playPromise && typeof playPromise.then === "function") {
+          playPromise.then(() => {
+            mediaAudioUnlocked = true;
+            updateSoundButton();
+          }).catch(() => scheduleBirthdayMelody());
+          return;
+        }
+      }
+
+      scheduleBirthdayMelody();
+    }
+
+    function stopBirthdayMusic() {
+      clearTimeout(birthdayMusicTimer);
+      birthdayMusicTimer = null;
+      if (birthdayAudio) {
+        birthdayAudio.pause();
+        birthdayAudio.currentTime = 0;
+        birthdayAudio = null;
+      }
+    }
+
+    function scheduleBirthdayMelody() {
+      if (gameState !== "birthday" || !ensureAudio()) return;
+
+      const beat = .34;
+      const melody = [
+        [392, .75], [392, .25], [440, 1], [392, 1], [523, 1], [494, 2],
+        [392, .75], [392, .25], [440, 1], [392, 1], [587, 1], [523, 2],
+        [392, .75], [392, .25], [784, 1], [659, 1], [523, 1], [494, 1], [440, 2],
+        [698, .75], [698, .25], [659, 1], [523, 1], [587, 1], [523, 2]
+      ];
+
+      let cursor = .25;
+      melody.forEach(([frequency, beats], index) => {
+        const duration = beats * beat;
+        playTone(frequency, Math.max(.11, duration * .82), "triangle", .105, cursor);
+        if (index % 6 === 0) {
+          playTone(frequency / 2, Math.max(.16, duration), "sine", .045, cursor);
+        }
+        cursor += duration;
+      });
+
+      birthdayMusicTimer = setTimeout(() => {
+        if (gameState === "birthday") scheduleBirthdayMelody();
+      }, (cursor + 1.1) * 1000);
+    }
+
+    function playFireworkWebAudio() {
+      const context = ensureAudio();
+      if (!context || !soundEnabled || context.state !== "running") return;
+
+      const duration = .24;
+      const buffer = context.createBuffer(1, Math.floor(context.sampleRate * duration), context.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let index = 0; index < data.length; index += 1) {
+        const decay = 1 - index / data.length;
+        data[index] = (Math.random() * 2 - 1) * decay * decay;
+      }
+
+      const source = context.createBufferSource();
+      const filter = context.createBiquadFilter();
+      const gain = context.createGain();
+      const start = context.currentTime;
+
+      source.buffer = buffer;
+      filter.type = "bandpass";
+      filter.frequency.value = 520 + Math.random() * 460;
+      filter.Q.value = .7;
+      gain.gain.setValueAtTime(.13, start);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterGain);
+      source.start(start);
+      playTone(95 + Math.random() * 35, .2, "sine", .095);
+    }
+
+    function playFireworkSound() {
+      const now = performance.now();
+      if (now - lastFireworkSoundAt < 260) return;
+      lastFireworkSoundAt = now;
+      playMediaSound("firework", .68, playFireworkWebAudio);
+    }
+
+    function showWinScreen() {
+      gameState = "cleared";
+      showScreen("win");
+      requestAnimationFrame(() => screens.win.classList.add("active"));
+      $("#winScreen").focus({ preventScroll: true });
+    }
+
+    function requestBirthdayReveal() {
+      if (gameState !== "cleared" || revealLocked) return;
+
+      unlockMediaAudio();
+      unlockAudio();
+      playRevealChime();
+      revealLocked = true;
+      screens.win.classList.add("transition-out");
+
+      setTimeout(() => {
+        gameState = "birthday";
+        showScreen("birthday");
+        resizeFireworks();
+        startFireworks();
+        startBirthdayMusic();
+      }, config.revealDelay);
+    }
+
+    function gameLoop(now) {
+      const delta = Math.min((now - lastFrame) / 1000, 0.04);
+      lastFrame = now;
+
+      const followSpeed = 16;
+      const blend = Math.min(1, delta * followSpeed);
+      player.renderX += (player.x - player.renderX) * blend;
+      player.renderY += (player.y - player.renderY) * blend;
+
+      drawMaze(now);
+
+      if (gameState === "playing" || gameState === "finishing") {
+        animationFrameId = requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function drawMaze(time) {
+      const tileSize = config.tileSize;
+      mazeContext.clearRect(0, 0, mazeCanvas.width, mazeCanvas.height);
+
+      maze.forEach((row, y) => {
+        row.forEach((tile, x) => {
+          drawFloor(x, y, tileSize);
+          if (isWall(tile)) drawWall(x, y, tile, tileSize);
+          if (tile === "G") drawGoal(x, y, tileSize, time);
+        });
+      });
+
+      if (!guitar.collected) {
+        drawGuitar(guitar.x, guitar.y, tileSize, time);
+      }
+      drawPlayer(player.renderX, player.renderY, tileSize, time);
+      drawVignette();
+    }
+
+    function drawFloor(x, y, size) {
+      const base = (x + y) % 2 === 0 ? "#6f7355" : "#686d50";
+      mazeContext.fillStyle = base;
+      mazeContext.fillRect(x * size, y * size, size, size);
+
+      const hash = (x * 17 + y * 31) % 9;
+      if (hash === 2 || hash === 7) {
+        mazeContext.fillStyle = "#858166";
+        mazeContext.fillRect(x * size + 3, y * size + 10, 2, 2);
+      }
+      if (hash === 5) {
+        mazeContext.fillStyle = "#4f6045";
+        mazeContext.fillRect(x * size + 11, y * size + 4, 2, 3);
+      }
+    }
+
+    function drawWall(x, y, tile, size) {
+      let wallType = tile;
+      if (tile === "#") {
+        if (y === 0 || y === maze.length - 1 || x === 0 || x === maze[0].length - 1) {
+          wallType = "B";
+        } else {
+          const hash = (x * 13 + y * 7) % 11;
+          wallType = hash === 0 ? "P" : hash <= 2 ? "B" : "H";
+        }
+      }
+
+      if (wallType === "H") drawHedge(x, y, size);
+      if (wallType === "B") drawBrick(x, y, size);
+      if (wallType === "P") drawPillar(x, y, size);
+    }
+
+    function drawHedge(x, y, size) {
+      const px = x * size;
+      const py = y * size;
+      mazeContext.fillStyle = "#1e2d20";
+      mazeContext.fillRect(px, py, size, size);
+      mazeContext.fillStyle = "#324832";
+      mazeContext.fillRect(px + 1, py + 1, size - 2, size - 3);
+      mazeContext.fillStyle = "#496044";
+      mazeContext.fillRect(px + 2, py + 2, 5, 4);
+      mazeContext.fillRect(px + 9, py + 5, 5, 4);
+      mazeContext.fillStyle = "#263a29";
+      mazeContext.fillRect(px + 5, py + 8, 6, 5);
+      mazeContext.fillStyle = "#71805a";
+      mazeContext.fillRect(px + 3, py + 3, 2, 2);
+      mazeContext.fillRect(px + 11, py + 6, 2, 2);
+      mazeContext.fillStyle = "#172019";
+      mazeContext.fillRect(px, py + size - 3, size, 3);
+    }
+
+    function drawBrick(x, y, size) {
+      const px = x * size;
+      const py = y * size;
+      mazeContext.fillStyle = "#4b4037";
+      mazeContext.fillRect(px, py, size, size);
+      mazeContext.fillStyle = "#756759";
+      mazeContext.fillRect(px + 1, py + 1, 7, 5);
+      mazeContext.fillRect(px + 9, py + 1, 6, 5);
+      mazeContext.fillRect(px + 1, py + 8, 4, 5);
+      mazeContext.fillRect(px + 6, py + 8, 8, 5);
+      mazeContext.fillStyle = "#332d28";
+      mazeContext.fillRect(px, py + 6, size, 2);
+      mazeContext.fillRect(px, py + 13, size, 3);
+      mazeContext.fillRect(px + 7, py, 2, 6);
+      mazeContext.fillRect(px + 4, py + 8, 2, 5);
+    }
+
+    function drawPillar(x, y, size) {
+      const px = x * size;
+      const py = y * size;
+      mazeContext.fillStyle = "#302f2a";
+      mazeContext.fillRect(px, py, size, size);
+      mazeContext.fillStyle = "#8b8778";
+      mazeContext.fillRect(px + 3, py + 2, 10, 2);
+      mazeContext.fillRect(px + 4, py + 4, 8, 9);
+      mazeContext.fillStyle = "#b2ac98";
+      mazeContext.fillRect(px + 5, py + 4, 2, 8);
+      mazeContext.fillStyle = "#625f55";
+      mazeContext.fillRect(px + 10, py + 4, 2, 9);
+      mazeContext.fillStyle = "#a29b87";
+      mazeContext.fillRect(px + 2, py + 13, 12, 2);
+      mazeContext.fillStyle = "#242520";
+      mazeContext.fillRect(px, py + 15, size, 1);
+    }
+
+    function drawGuitar(x, y, size, time) {
+      const px = x * size;
+      const py = y * size;
+      const glint = Math.floor(time / 480) % 2;
+
+      mazeContext.fillStyle = "rgba(25, 21, 16, .3)";
+      mazeContext.fillRect(px + 2, py + 12, 11, 3);
+      mazeContext.fillStyle = "#4e3022";
+      mazeContext.fillRect(px + 3, py + 8, 7, 6);
+      mazeContext.fillRect(px + 5, py + 6, 5, 8);
+      mazeContext.fillStyle = config.colors.guitarWood;
+      mazeContext.fillRect(px + 4, py + 8, 5, 5);
+      mazeContext.fillRect(px + 6, py + 7, 4, 6);
+      mazeContext.fillStyle = "#39251d";
+      mazeContext.fillRect(px + 7, py + 9, 2, 2);
+
+      mazeContext.fillStyle = "#4a3023";
+      mazeContext.fillRect(px + 9, py + 5, 2, 5);
+      mazeContext.fillRect(px + 10, py + 3, 2, 3);
+      mazeContext.fillRect(px + 11, py + 2, 3, 2);
+      mazeContext.fillStyle = config.colors.guitarLight;
+      mazeContext.fillRect(px + 10, py + 5, 1, 5);
+
+      if (glint) {
+        mazeContext.fillStyle = "#eadb91";
+        mazeContext.fillRect(px + 2, py + 4, 2, 2);
+        mazeContext.fillRect(px + 3, py + 3, 1, 4);
+      }
+    }
+
+    // 终点是一个旧石门。想换造型，可在这里修改矩形颜色和位置。
+    function drawGoal(x, y, size, time) {
+      const px = x * size;
+      const py = y * size;
+      const pulse = Math.floor(time / 420) % 2;
+      const stone = config.colors.goalStone;
+
+      mazeContext.fillStyle = pulse ? "#8c814a" : "#6f6943";
+      mazeContext.fillRect(px + 1, py + 1, size - 2, size - 2);
+      mazeContext.fillStyle = stone;
+      mazeContext.fillRect(px + 2, py + 2, 4, 12);
+      mazeContext.fillRect(px + 10, py + 2, 4, 12);
+      mazeContext.fillRect(px + 4, py + 1, 8, 4);
+      mazeContext.fillStyle = "#22251f";
+      mazeContext.fillRect(px + 6, py + 5, 4, 9);
+      mazeContext.fillStyle = config.colors.goalGlow;
+      mazeContext.fillRect(px + 7, py + 7, 2, 4);
+      mazeContext.fillRect(px + 6, py + 8, 4, 2);
+    }
+
+    // 女性角色使用长发、收腰外套和短裙摆的像素轮廓。
+    // 可在 config.colors 修改配色，也可在这里调整造型。
+    function drawCarriedGuitar(px, py, bob) {
+      mazeContext.fillStyle = "#4c3023";
+      mazeContext.fillRect(px + 10, py + 8 + bob, 4, 6);
+      mazeContext.fillRect(px + 8, py + 4 + bob, 2, 7);
+      mazeContext.fillRect(px + 7, py + 2 + bob, 3, 3);
+      mazeContext.fillStyle = config.colors.guitarWood;
+      mazeContext.fillRect(px + 11, py + 9 + bob, 3, 4);
+      mazeContext.fillStyle = config.colors.guitarLight;
+      mazeContext.fillRect(px + 9, py + 4 + bob, 1, 7);
+    }
+
+    function drawPlayer(x, y, size, time) {
+      const px = Math.round(x * size);
+      const py = Math.round(y * size);
+      const step = Math.floor(time / 150) % 2;
+      const bob = Math.abs(player.x - player.renderX) + Math.abs(player.y - player.renderY) > .04 ? step : 0;
+
+      mazeContext.fillStyle = "rgba(18, 20, 17, .36)";
+      mazeContext.fillRect(px + 3, py + 13, 10, 3);
+
+      if (guitar.collected) {
+        drawCarriedGuitar(px, py, bob);
+      }
+
+      // Long hair behind the face and shoulders.
+      mazeContext.fillStyle = config.colors.playerHair;
+      mazeContext.fillRect(px + 4, py + 2 + bob, 9, 8);
+      mazeContext.fillRect(px + 3, py + 5 + bob, 2, 5);
+      mazeContext.fillRect(px + 12, py + 5 + bob, 2, 5);
+
+      // Face and fringe.
+      mazeContext.fillStyle = config.colors.playerSkin;
+      mazeContext.fillRect(px + 6, py + 4 + bob, 5, 4);
+      mazeContext.fillStyle = config.colors.playerHair;
+      mazeContext.fillRect(px + 5, py + 2 + bob, 7, 3);
+      mazeContext.fillRect(px + 5, py + 4 + bob, 2, 2);
+
+      // Scarf, fitted coat and a small flared hem.
+      mazeContext.fillStyle = config.colors.playerScarf;
+      mazeContext.fillRect(px + 5, py + 8 + bob, 7, 2);
+      mazeContext.fillStyle = config.colors.playerCoat;
+      mazeContext.fillRect(px + 5, py + 10 + bob, 7, 3);
+      mazeContext.fillRect(px + 4, py + 12 + bob, 9, 2);
+      mazeContext.fillStyle = config.colors.playerBoots;
+
+      if (step) {
+        mazeContext.fillRect(px + 4, py + 14, 3, 2);
+        mazeContext.fillRect(px + 10, py + 13, 3, 2);
+      } else {
+        mazeContext.fillRect(px + 5, py + 14, 3, 2);
+        mazeContext.fillRect(px + 9, py + 14, 3, 2);
+      }
+
+      if (player.facing === "left") {
+        mazeContext.fillStyle = config.colors.playerSkin;
+        mazeContext.fillRect(px + 3, py + 10 + bob, 2, 2);
+      } else if (player.facing === "right") {
+        mazeContext.fillStyle = config.colors.playerSkin;
+        mazeContext.fillRect(px + 12, py + 10 + bob, 2, 2);
+      }
+    }
+
+    function drawVignette() {
+      const gradient = mazeContext.createRadialGradient(
+        mazeCanvas.width / 2,
+        mazeCanvas.height / 2,
+        mazeCanvas.width * .16,
+        mazeCanvas.width / 2,
+        mazeCanvas.height / 2,
+        mazeCanvas.width * .7
+      );
+      gradient.addColorStop(0, "rgba(0,0,0,0)");
+      gradient.addColorStop(1, "rgba(8,12,8,.18)");
+      mazeContext.fillStyle = gradient;
+      mazeContext.fillRect(0, 0, mazeCanvas.width, mazeCanvas.height);
+    }
+
+    function bindControls() {
+      const startButton = $("#startButton");
+      startButton.addEventListener("pointerdown", () => {
+        unlockMediaAudio();
+        unlockAudio();
+      }, { passive: true });
+      startButton.addEventListener("click", startGame);
+      $("#soundButton").addEventListener("click", toggleSound);
+
+      window.addEventListener("keydown", (event) => {
+        const keyMap = {
+          ArrowUp: "up",
+          w: "up",
+          W: "up",
+          ArrowDown: "down",
+          s: "down",
+          S: "down",
+          ArrowLeft: "left",
+          a: "left",
+          A: "left",
+          ArrowRight: "right",
+          d: "right",
+          D: "right"
+        };
+
+        if (keyMap[event.key]) {
+          event.preventDefault();
+          unlockMediaAudio();
+          unlockAudio();
+          movePlayer(keyMap[event.key]);
+        }
+
+        if ((event.key === "Enter" || event.key === " ") && gameState === "cleared") {
+          event.preventDefault();
+          requestBirthdayReveal();
+        }
+      }, { passive: false });
+
+      document.querySelectorAll(".dpad-button").forEach((button) => {
+        const direction = button.dataset.direction;
+
+        button.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          unlockMediaAudio();
+          unlockAudio();
+          button.setPointerCapture?.(event.pointerId);
+          button.classList.add("pressed");
+          movePlayer(direction);
+          clearInterval(holdTimer);
+          holdTimer = setTimeout(() => {
+            holdTimer = setInterval(() => movePlayer(direction), 105);
+          }, 260);
+        });
+
+        ["pointerup", "pointercancel", "lostpointercapture"].forEach((eventName) => {
+          button.addEventListener(eventName, () => {
+            button.classList.remove("pressed");
+            clearTimeout(holdTimer);
+            clearInterval(holdTimer);
+          });
+        });
+      });
+
+      screens.win.addEventListener("pointerup", requestBirthdayReveal);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && soundEnabled) {
+          unlockMediaAudio();
+          unlockAudio();
+        }
+      });
+      window.addEventListener("resize", () => {
+        if (gameState === "birthday") resizeFireworks();
+      });
+    }
+
+    // ----------------------- Fireworks -----------------------
+    let fireworkParticles = [];
+    let fireworkRockets = [];
+    let fireworkRunning = false;
+    let nextLaunchAt = 0;
+    const fireworkColors = ["#f2cc67", "#d77a75", "#7eb3a8", "#9d88c5", "#eadfbd"];
+
+    function resizeFireworks() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      fireworksCanvas.width = Math.floor(window.innerWidth * dpr);
+      fireworksCanvas.height = Math.floor(window.innerHeight * dpr);
+      fireworksCanvas.style.width = `${window.innerWidth}px`;
+      fireworksCanvas.style.height = `${window.innerHeight}px`;
+      fireworksContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function startFireworks() {
+      fireworkRunning = true;
+      fireworkParticles = [];
+      fireworkRockets = [];
+      nextLaunchAt = performance.now();
+      requestAnimationFrame(updateFireworks);
+    }
+
+    function launchFirework() {
+      const margin = window.innerWidth * .12;
+      fireworkRockets.push({
+        x: margin + Math.random() * (window.innerWidth - margin * 2),
+        y: window.innerHeight + 12,
+        targetY: window.innerHeight * (.14 + Math.random() * .38),
+        velocityY: -(5.2 + Math.random() * 1.7),
+        color: fireworkColors[Math.floor(Math.random() * fireworkColors.length)]
+      });
+    }
+
+    function explodeFirework(rocket) {
+      playFireworkSound();
+      const particleCount = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 18 : 34;
+      for (let index = 0; index < particleCount; index += 1) {
+        const angle = (Math.PI * 2 * index) / particleCount + Math.random() * .13;
+        const speed = 1.4 + Math.random() * 2.8;
+        fireworkParticles.push({
+          x: rocket.x,
+          y: rocket.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1,
+          decay: .011 + Math.random() * .013,
+          color: rocket.color,
+          size: Math.random() > .72 ? 3 : 2
+        });
+      }
+    }
+
+    function updateFireworks(time) {
+      if (!fireworkRunning || gameState !== "birthday") return;
+
+      fireworksContext.fillStyle = "rgba(9, 12, 23, .18)";
+      fireworksContext.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      if (time >= nextLaunchAt && fireworkRockets.length < 3) {
+        launchFirework();
+        nextLaunchAt = time + 520 + Math.random() * 650;
+      }
+
+      for (let index = fireworkRockets.length - 1; index >= 0; index -= 1) {
+        const rocket = fireworkRockets[index];
+        rocket.y += rocket.velocityY;
+        rocket.velocityY += .022;
+
+        fireworksContext.fillStyle = rocket.color;
+        fireworksContext.fillRect(Math.round(rocket.x), Math.round(rocket.y), 3, 7);
+
+        if (rocket.y <= rocket.targetY || rocket.velocityY > -1.4) {
+          explodeFirework(rocket);
+          fireworkRockets.splice(index, 1);
+        }
+      }
+
+      for (let index = fireworkParticles.length - 1; index >= 0; index -= 1) {
+        const particle = fireworkParticles[index];
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+        particle.vx *= .987;
+        particle.vy = particle.vy * .987 + .035;
+        particle.life -= particle.decay;
+
+        fireworksContext.globalAlpha = Math.max(0, particle.life);
+        fireworksContext.fillStyle = particle.color;
+        fireworksContext.fillRect(
+          Math.round(particle.x),
+          Math.round(particle.y),
+          particle.size,
+          particle.size
+        );
+
+        if (particle.life <= 0) fireworkParticles.splice(index, 1);
+      }
+
+      fireworksContext.globalAlpha = 1;
+      requestAnimationFrame(updateFireworks);
+    }
+
+    function init() {
+      applyCopy();
+      parseMaze();
+      buildMediaSounds();
+      bindControls();
+      drawMaze(performance.now());
+    }
+
+    init();
+  </script>
+</body>
+</html>
